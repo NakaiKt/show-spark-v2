@@ -17,8 +17,13 @@ export async function createClient() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        for (const { name, value, options } of cookiesToSet) {
-          cookieStore.set(name, value, options);
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Server Component から呼ばれた場合は Cookie を書けないが無視してよい。
+          // セッションのリフレッシュはミドルウェア（proxy.ts）が担当する。
         }
       },
     },
