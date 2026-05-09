@@ -42,7 +42,7 @@ npm run gen:types
 ### 1. マイグレーションファイルを作成
 
 ```bash
-supabase migration new <名前>
+npx supabase migration new <名前>
 # 例: supabase migration new create_users
 # → supabase/migrations/YYYYMMDDHHMMSS_create_users.sql が生成される
 ```
@@ -106,7 +106,7 @@ npm run db:push
 既存ファイルは編集しない。変更は必ず新しいファイルで行う。
 
 ```bash
-supabase migration new add_username_to_users
+npx supabase migration new add_username_to_users
 ```
 
 ### 2. 差分のSQLを書く
