@@ -31,7 +31,7 @@ create policy "users: delete own"
 -- updated_at 自動更新（shared.sql の moddatetime 拡張を使用）
 create trigger handle_updated_at
   before update on public.users
-  for each row execute procedure moddatetime(updated_at);
+  for each row execute procedure extensions.moddatetime(updated_at);
 
 -- Supabase Auth でサインアップした際に自動でレコードを生成する
 create or replace function public.handle_new_user()
