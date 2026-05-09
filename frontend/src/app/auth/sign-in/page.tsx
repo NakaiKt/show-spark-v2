@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { sanitizeNextPath } from "@/lib/auth/sanitize-next-path";
 import { createClient } from "@/lib/supabase/server";
 
 type SignInPageProps = {
@@ -41,12 +42,4 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       </Card>
     </main>
   );
-}
-
-function sanitizeNextPath(next?: string) {
-  if (!next?.startsWith("/")) {
-    return "/app";
-  }
-
-  return next;
 }

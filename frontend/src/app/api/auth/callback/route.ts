@@ -1,17 +1,6 @@
 import { NextResponse } from "next/server";
+import { sanitizeNextPath } from "@/lib/auth/sanitize-next-path";
 import { createClient } from "@/lib/supabase/server";
-
-/**
- * next パラメータをサニタイズしてオープンリダイレクトを防ぐ。
- * 外部 URL（例: `//evil.com`）が渡された場合はルートにフォールバックする。
- */
-function sanitizeNextPath(next: string | null) {
-  if (!next?.startsWith("/") || next.startsWith("//")) {
-    return "/";
-  }
-
-  return next;
-}
 
 // OAuth / OIDC の認可コードフロー（PKCE）のコールバックエンドポイント。
 // IdP がリダイレクトしてきた code をセッションに交換し、ログイン前の画面へ戻す。
@@ -43,4 +32,3 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(`${origin}${next}`);
 }
-
