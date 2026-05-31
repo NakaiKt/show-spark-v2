@@ -141,6 +141,13 @@ packages/
 - application層で実施（主）
 - RLSは最終防衛ライン
 
+### アプリユーザー ID と認証 subject
+
+- `public.users.id` … アプリ内の不変ユーザー ID（`owner_id` / `resource_members.user_id` はすべてここを参照）
+- `public.user_auth_identities` … 認証プロバイダと `users` のリンク（`provider`, `provider_subject`）
+  - Supabase Auth 利用時: `provider = 'supabase'`, `provider_subject = auth.users.id`
+- JWT の `auth.uid()` は **アプリユーザー ID ではない**。RLS では `rls.current_app_user_id()` / `rls.is_own(owner_id)` を使う
+
 ---
 
 ## 6. Supabase利用方針
@@ -179,14 +186,16 @@ resource_members
 
 ### SELECT（閲覧）
 
+`owner_id` / `user_id` は `public.users.id`。RLS ヘルパー `rls.is_own(uuid)` を使う。
+
 ```
 visibility = 'public'
-OR owner_id = auth.uid()
+OR rls.is_own(owner_id)
 OR EXISTS (
   SELECT 1
   FROM resource_members
   WHERE resource_members.resource_id = resources.id
-    AND resource_members.user_id = auth.uid()
+    AND rls.is_own(resource_members.user_id)
     AND resource_members.role = 'admin'
 )
 ```
@@ -195,21 +204,19 @@ OR EXISTS (
 
 ### INSERT（ルートリソース）
 
-```
-owner_id = auth.uid()
-```
+application 層で `owner_id` に解決済みの `public.users.id` をセットする（`auth.uid()` をそのまま入れない）。
 
 ---
 
 ### UPDATE / DELETE
 
 ```
-owner_id = auth.uid()
+rls.is_own(owner_id)
 OR EXISTS (
   SELECT 1
   FROM resource_members
   WHERE resource_members.resource_id = resources.id
-    AND resource_members.user_id = auth.uid()
+    AND rls.is_own(resource_members.user_id)
     AND resource_members.role = 'admin'
 )
 ```
@@ -226,12 +233,12 @@ EXISTS (
   FROM resources
   WHERE resources.id = contents.resource_id
     AND (
-      resources.owner_id = auth.uid()
+      rls.is_own(resources.owner_id)
       OR EXISTS (
         SELECT 1
         FROM resource_members
         WHERE resource_members.resource_id = resources.id
-          AND resource_members.user_id = auth.uid()
+          AND rls.is_own(resource_members.user_id)
           AND resource_members.role = 'admin'
       )
     )

@@ -60,38 +60,10 @@ npx supabase migration new <名前>
 
 ### 2. SQLを書く
 
-生成されたファイルに以下を記述する。
+ユーザーまわりは `public.users` と `public.user_auth_identities` に分離する（認証 subject はリンク表のみ）。
 
-```sql
--- テーブル定義
-create table public.users (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text not null unique,
-  created_at timestamptz default current_timestamp
-);
-
--- RLS（必須）
-alter table public.users enable row level security;
-
-create policy "Users can read own profile"
-on public.users for select
-to authenticated
-using ((select auth.uid()) = id);
-
--- Supabase Auth でサインアップした際に自動でレコードを生成するトリガー
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.users (id, email)
-  values (new.id, new.email);
-  return new;
-end;
-$$ language plpgsql security definer set search_path = public;
-
-create trigger on_auth_user_created
-after insert on auth.users
-for each row execute function public.handle_new_user();
-```
+- 実装例: `supabase/migrations/20260509032705_users.sql`
+- dev への適用手順: [docs/db-user-identity-migration.md](docs/db-user-identity-migration.md)
 
 ### 3. ローカルで確認・ファイル生成
 

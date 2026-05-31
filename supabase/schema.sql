@@ -62,14 +62,20 @@ CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
+declare
+  new_user_id uuid;
 begin
-  insert into public.users (id, name, email, avatar_url)
+  insert into public.users (name, email, avatar_url)
   values (
-    new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
     new.email,
     new.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  returning id into new_user_id;
+
+  insert into public.user_auth_identities (user_id, provider, provider_subject)
+  values (new_user_id, 'supabase', new.id);
+
   return new;
 end;
 $$;
@@ -78,36 +84,19 @@ $$;
 ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."rls_auto_enable"() RETURNS "event_trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'pg_catalog'
+CREATE OR REPLACE FUNCTION "rls"."current_app_user_id"() RETURNS "uuid"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
-DECLARE
-  cmd record;
-BEGIN
-  FOR cmd IN
-    SELECT *
-    FROM pg_event_trigger_ddl_commands()
-    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
-      AND object_type IN ('table','partitioned table')
-  LOOP
-     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
-      BEGIN
-        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);
-        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
-      EXCEPTION
-        WHEN OTHERS THEN
-          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
-      END;
-     ELSE
-        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
-     END IF;
-  END LOOP;
-END;
+  select uai.user_id
+  from public.user_auth_identities uai
+  where uai.provider = 'supabase'
+    and uai.provider_subject = auth.uid()
+  limit 1
 $$;
 
 
-ALTER FUNCTION "public"."rls_auto_enable"() OWNER TO "postgres";
+ALTER FUNCTION "rls"."current_app_user_id"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "rls"."is_authenticated"() RETURNS boolean
@@ -122,7 +111,7 @@ ALTER FUNCTION "rls"."is_authenticated"() OWNER TO "postgres";
 CREATE OR REPLACE FUNCTION "rls"."is_own"("owner_id" "uuid") RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
-    AS $$ select auth.uid() = owner_id $$;
+    AS $$ select rls.current_app_user_id() = owner_id $$;
 
 
 ALTER FUNCTION "rls"."is_own"("owner_id" "uuid") OWNER TO "postgres";
@@ -132,8 +121,20 @@ SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
 
+CREATE TABLE IF NOT EXISTS "public"."user_auth_identities" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "provider" "text" NOT NULL,
+    "provider_subject" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."user_auth_identities" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."users" (
-    "id" "uuid" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
     "email" "text" NOT NULL,
     "avatar_url" "text",
@@ -143,6 +144,16 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 
 
 ALTER TABLE "public"."users" OWNER TO "postgres";
+
+
+ALTER TABLE ONLY "public"."user_auth_identities"
+    ADD CONSTRAINT "user_auth_identities_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_auth_identities"
+    ADD CONSTRAINT "user_auth_identities_provider_provider_subject_key" UNIQUE ("provider", "provider_subject");
+
 
 
 ALTER TABLE ONLY "public"."users"
@@ -155,12 +166,23 @@ ALTER TABLE ONLY "public"."users"
 
 
 
+CREATE INDEX "user_auth_identities_user_id_idx" ON "public"."user_auth_identities" USING "btree" ("user_id");
+
+
+
 CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "extensions"."moddatetime"('updated_at');
 
 
 
-ALTER TABLE ONLY "public"."users"
-    ADD CONSTRAINT "users_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."user_auth_identities"
+    ADD CONSTRAINT "user_auth_identities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE "public"."user_auth_identities" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "user_auth_identities: select own" ON "public"."user_auth_identities" FOR SELECT TO "authenticated" USING (("provider_subject" = "auth"."uid"()));
 
 
 
@@ -341,9 +363,6 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."rls_auto_enable"() TO "anon";
-GRANT ALL ON FUNCTION "public"."rls_auto_enable"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."rls_auto_enable"() TO "service_role";
 
 
 
@@ -359,6 +378,9 @@ GRANT ALL ON FUNCTION "public"."rls_auto_enable"() TO "service_role";
 
 
 
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."user_auth_identities" TO "anon";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."user_auth_identities" TO "authenticated";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."user_auth_identities" TO "service_role";
 
 
 
@@ -395,10 +417,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLES TO "service_role";
-
-
-
-
 
 
 

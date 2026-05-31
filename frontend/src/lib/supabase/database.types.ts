@@ -34,6 +34,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_auth_identities: {
+        Row: {
+          created_at: string
+          id: string
+          provider: string
+          provider_subject: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          provider: string
+          provider_subject: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          provider?: string
+          provider_subject?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_auth_identities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -47,7 +79,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
-          id: string
+          id?: string
           name: string
           updated_at?: string
         }
