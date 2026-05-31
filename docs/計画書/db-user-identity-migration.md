@@ -8,7 +8,7 @@
 
 | 対象 | 扱い |
 |------|------|
-| **本ファイル（`docs/db-user-identity-migration.md`）** | 設計方針・SQL 原文・実行手順の唯一の参照先 |
+| **本ファイル（`docs/計画書/db-user-identity-migration.md`）** | 設計方針・SQL 原文・実行手順の唯一の参照先 |
 | **`supabase/migrations/` など実装ファイル** | **手順 1 を実行するまで変更しない**（未適用の設計は本書にのみ書く） |
 | **dev リモート DB** | **手順 2 以降**で `db reset --linked` するまで現状のまま |
 

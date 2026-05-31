@@ -136,6 +136,24 @@ packages/
 ### 認証
 - Supabase Auth（Google OIDC）
 
+### 認証方式（2段構え）
+
+| 処理 | 方式 | 説明 |
+|------|------|------|
+| OAuth ログイン | Cookie セッション | `/api/auth/callback` で Supabase SSR が JWT を Cookie に保存。ブラウザのログイン状態維持に使用 |
+| 業務 API | `Authorization: Bearer` | クライアントが `access_token` を明示的にヘッダーで渡す。API とフロントを疎結合に保つ |
+
+業務 API（`/api/users/*`, `/api/projects/*` 等）では Cookie に依存せず、必ず Bearer トークンで認証する。
+
+Route Handler での標準フロー:
+
+1. `extractBearerToken(request)` で JWT を取得
+2. `supabase.auth.getUser(jwt)` で JWT を検証し `sub`（= `auth.users.id`）を得る
+3. `resolveAuthenticatedAppUser`（application 層）で `sub → public.users.id` を解決
+4. 解決した `appUserId` を usecase に渡す
+
+JWT は手動 decode しない。Supabase Auth による検証を必須とする。
+
 ### 認可
 
 - application層で実施（主）
@@ -146,7 +164,8 @@ packages/
 - `public.users.id` … アプリ内の不変ユーザー ID（`owner_id` / `resource_members.user_id` はすべてここを参照）
 - `public.user_auth_identities` … 認証プロバイダと `users` のリンク（`provider`, `provider_subject`）
   - Supabase Auth 利用時: `provider = 'supabase'`, `provider_subject = auth.users.id`
-- JWT の `auth.uid()` は **アプリユーザー ID ではない**。RLS では `rls.current_app_user_id()` / `rls.is_own(owner_id)` を使う
+- JWT の `sub` / `auth.uid()` は **アプリユーザー ID ではない**。RLS では `rls.current_app_user_id()` / `rls.is_own(owner_id)` を使う
+- `sub → app user_id` の解決は `packages/application/src/auth/resolve-authenticated-app-user.ts` に集約し、全 API で再利用する
 
 ---
 
@@ -297,8 +316,10 @@ packages/shared/validation
 - RESTベース
 - 内部用途のみ
 - ルートはシンプルに保つ
+- 認証必須 API は `Authorization: Bearer <access_token>` を要求する
 
 ```
+GET    /api/users/me          # ログイン中ユーザー情報
 GET    /api/projects
 POST   /api/projects
 GET    /api/projects/:id

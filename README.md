@@ -1,3 +1,14 @@
+# 計画書
+
+実装前の設計・手順書は `docs/計画書/` に置く。
+
+| ファイル | 内容 |
+|---|---|
+| [docs/計画書/db-user-identity-migration.md](docs/計画書/db-user-identity-migration.md) | ユーザー ID 分離（DB マイグレーション） |
+| [docs/計画書/get-users-me-api.md](docs/計画書/get-users-me-api.md) | GET /api/users/me 実装計画 |
+
+---
+
 # 開発環境起動
 1回目
 ``` bash
@@ -63,7 +74,7 @@ npx supabase migration new <名前>
 ユーザーまわりは `public.users` と `public.user_auth_identities` に分離する（認証 subject はリンク表のみ）。
 
 - 実装例: `supabase/migrations/20260509032705_users.sql`
-- dev への適用手順: [docs/db-user-identity-migration.md](docs/db-user-identity-migration.md)
+- dev への適用手順: [docs/計画書/db-user-identity-migration.md](docs/計画書/db-user-identity-migration.md)
 
 ### 3. ローカルで確認・ファイル生成
 
