@@ -42,47 +42,108 @@ Client (Browser)
 Next.js
    ├─ Server Components（read）
    ├─ Client Components（UI）
-   └─ Route Handlers（BFF / controller）
+   └─ Route Handlers（BFF / controller）  ← frontend/src/app/api/
          ↓
-   Application（usecase）
+   Application（usecase / service）       ← packages/application/
          ↓
-   Domain（business rules）
+   Domain（business rules）               ← packages/domain/（最初は薄くてよい）
          ↓
-   Repository（DB access）
+   Repository（DB access / dao）          ← packages/db/
          ↓
    Supabase
 ```
+
+**重要:** `packages/` は API そのものではない。HTTP を受けるのは `frontend/src/app/api/**/route.ts` のみ。
+
+---
+
+## 2.1 Express 経験者向け：レイヤー対応表
+
+Express（router → validation → controller → service → dao）で開発してきた場合の対応。
+
+| Express で慣れた層 | 本プロジェクト | 主な場所 | やること |
+|-------------------|----------------|----------|----------|
+| **router** | Route Handler + 共通ラッパー | `frontend/src/app/api/**/route.ts`<br>`frontend/src/lib/api/handle-route.ts` | URL と HTTP メソッドの対応。リクエストを受け取り controller 処理へ渡す |
+| **validation** | shared（zod）+ route 内の軽いチェック | `packages/shared/validation/*`<br>`packages/shared/auth/*` | リクエスト形式・Bearer ヘッダーの検証。不可なら `AppError` |
+| **controller** | Route Handler 本体 | `frontend/src/app/api/**/route.ts` | service（application）を呼び、HTTP レスポンスに変換 |
+| **service** | application | `packages/application/*` | 業務ユースケース。「ログインユーザーを返す」等の処理手順 |
+| **dao** | db（repository） | `packages/db/repositories/*` | DB の CRUD のみ。業務判断は書かない |
+
+**Express にない追加パッケージ（2 つだけ）:**
+
+| パッケージ | Express で近いもの | 役割 |
+|------------|-------------------|------|
+| **shared** | validators + 共通 DTO + エラー定義 | フロントとバックで共有する型・zod・`AppError` |
+| **domain** | service 内の純粋なルール部分 | DB も HTTP も知らない業務ルール（初期は型の re-export 程度で可） |
+
+**フロント専用（API を呼ぶ側）:**
+
+| 場所 | 役割 |
+|------|------|
+| `frontend/src/lib/api/client.ts` | axios。`/api` 付与・Bearer 自動付与・エラー判定 |
+| `frontend/src/lib/api/token-provider.ts` | ログイン session から access_token を取得（Supabase はここだけ） |
+
+### 1 リクエストの流れ（GET /api/users/me の例）
+
+```text
+1. router      route.ts が GET /api/users/me を受け取る
+2. validation  requireBearerToken — Authorization ヘッダーがあるか
+3. controller  handleRoute 内で service を呼ぶ
+4. service     getCurrentUser — 「本人の users 行を返す」という業務
+5. dao         findUserById — users テーブルを SELECT
+6. controller  JSON レスポンス（エラー時は jsonError）
+```
+
+### コードを書くときの判断（Express 経験者向け）
+
+| 書こうとしている内容 | 置く場所 |
+|---------------------|----------|
+| `req.headers` の読み取り、HTTP ステータス | route.ts / handle-route |
+| リクエスト body の zod 検証 | packages/shared/validation |
+| 「誰のデータか」の判断、ユースケースの組み立て | packages/application |
+| 「名前は空不可」等の純粋なルール | packages/domain |
+| `SELECT` / `INSERT` / `UPDATE` | packages/db |
 
 ---
 
 ## 3. ディレクトリ構成
 
 ```
-frontend/
-  app/
-    api/
-      projects/
-        route.ts
+frontend/                          ← UI + API 入口（Next.js）
+  src/
+    app/
+      api/                         ← ★ API（Express の routes + controllers）
+        users/me/route.ts
+    lib/
+      api/                         ← axios クライアント、handleRoute
+      supabase/                    ← 認証セッション（token 取得用）
 
-packages/
-  application/
-  domain/
-  db/
-  shared/
+packages/                          ← ★ API の中身（Express の service + dao を分離）
+  shared/                          ← validation + 共通型 + エラー
+  application/                     ← service
+  db/                              ← dao
+  domain/                          ← 純粋な業務ルール（最初は薄くてよい）
 ```
+
+`packages/` 単体では HTTP リクエストを受けない。必ず `frontend/src/app/api/` 経由。
 
 ---
 
 ## 4. レイヤー責務
 
-### 4.1 Route Handler（controller）
+各層の Express 対応を併記する。
+
+### 4.1 Route Handler（controller + router）
+
+**Express 対応:** router + controller
 
 責務：
 
 - HTTP request/response
-- 認証コンテキスト取得
-- 軽量バリデーション
-- application呼び出し
+- 認証コンテキスト取得（Bearer ヘッダー）
+- 軽量バリデーション（shared の zod / requireBearerToken を呼ぶ）
+- application 呼び出し
+- `handleRoute()` でエラーを共通 JSON に変換
 
 禁止：
 
@@ -91,19 +152,25 @@ packages/
 
 ---
 
-### 4.2 application（usecase）
+### 4.2 application（service / usecase）
+
+**Express 対応:** service
 
 責務：
 
-- ユースケース実装
+- ユースケース実装（「ログインユーザーを返す」等）
 - 認可（主責務）
 - トランザクション制御
-- domain呼び出し
-- repository呼び出し
+- domain 呼び出し
+- db（repository）呼び出し
+
+例: `getCurrentUser`, `requireAuthenticatedAppUser`
 
 ---
 
-### 4.3 domain
+### 4.3 domain（純粋な業務ルール）
+
+**Express 対応:** service から切り出したルール部分（最初は空に近くてよい）
 
 責務：
 
@@ -115,19 +182,40 @@ packages/
 - DBアクセス
 - フレームワーク依存
 
+初期段階では `User` 型の re-export だけでもよい。ルールが複雑になったらここへ移す。
+
 ---
 
-### 4.4 repository
+### 4.4 db / repository（dao）
+
+**Express 対応:** dao
 
 責務：
 
-- Supabaseアクセス
-- クエリのカプセル化
+- Supabase アクセス
+- クエリのカプセル化（SELECT / INSERT / UPDATE / DELETE）
+
+例: `findUserById`, `findAppUserIdByProviderSubject`
 
 禁止：
 
 - 業務ロジック
 - 認可
+
+---
+
+### 4.5 shared（共通部品）
+
+**Express 対応:** validators + 共通 DTO + カスタムエラー
+
+責務：
+
+- zod スキーマ（フロント・バック共有）
+- 共通型（`User` 等）
+- `AppError` とエラーコード
+- Bearer トークン解析（`extractBearerToken`）
+
+フロントの axios とバックの route.ts の両方から import される。
 
 ---
 
@@ -390,11 +478,13 @@ Route Handlerでは扱わない
 
 ## 16. 判断基準
 
-| 状況 | 層 |
-|---|---|
-| HTTP処理 | route.ts |
-| ユースケース | application |
-| 業務ルール | domain |
-| DB | repository |
+| 状況 | 層 | Express で言うと |
+|---|---|---|
+| HTTP処理・URL対応 | route.ts | router + controller |
+| リクエスト形式の検証 | shared | validation |
+| ユースケース・認可 | application | service |
+| 純粋な業務ルール | domain | service 内ルール |
+| DB 操作 | db | dao |
+| フロントから API 呼び出し | lib/api/client.ts | （フロントの API クライアント） |
 
 ---

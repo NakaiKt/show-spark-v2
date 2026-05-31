@@ -1,0 +1,18 @@
+{
+  "name": "@repo/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./supabase/create-authenticated-client": "./src/supabase/create-authenticated-client.ts",
+    "./repositories/user-auth-identity-repository": "./src/repositories/user-auth-identity-repository.ts",
+    "./repositories/user-repository": "./src/repositories/user-repository.ts"
+  },
+  "dependencies": {
+    "@repo/shared": "*",
+    "@supabase/supabase-js": "^2.105.1"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

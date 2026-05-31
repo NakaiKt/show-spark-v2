@@ -2,10 +2,12 @@
 
 実装前の設計・手順書は `docs/計画書/` に置く。
 
+レイヤー構成（Express の router / service / dao との対応）は [AGENTS.md §2.1](AGENTS.md#21-express-経験者向けレイヤー対応表) を参照。
+
 | ファイル | 内容 |
 |---|---|
 | [docs/計画書/db-user-identity-migration.md](docs/計画書/db-user-identity-migration.md) | ユーザー ID 分離（DB マイグレーション） |
-| [docs/計画書/get-users-me-api.md](docs/計画書/get-users-me-api.md) | GET /api/users/me 実装計画 |
+| [docs/計画書/get-users-me-api.md](docs/計画書/get-users-me-api.md) | GET /api/users/me 実装計画（Phase 別手順・Express 対応付き） |
 
 ---
 
