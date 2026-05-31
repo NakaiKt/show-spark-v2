@@ -1,4 +1,5 @@
 {
+  "workspaces": ["packages/*", "frontend"],
   "scripts": {
     "dev": "npx supabase start & cd frontend && npm run dev",
     "db:reset": "supabase db reset && npm run db:dump && npm run gen:types",

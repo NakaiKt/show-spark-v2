@@ -35,6 +35,17 @@ npm run gen:types
 
 ```
 
+## linkが切れている場合
+`Cannot find project ref. Have you run supabase link?` と言われた場合
+
+``` bash
+// まずはログインしているかどうか
+npx supabase login
+
+// プロジェクトの紐づけ
+npx supabase link
+```
+
 # テーブルの作成・変更手順
 
 ## テーブルを新規作成する
