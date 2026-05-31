@@ -165,14 +165,27 @@ JWT は手動 decode しない。Supabase Auth による検証を必須とする
 - `public.user_auth_identities` … 認証プロバイダと `users` のリンク（`provider`, `provider_subject`）
   - Supabase Auth 利用時: `provider = 'supabase'`, `provider_subject = auth.users.id`
 - JWT の `sub` / `auth.uid()` は **アプリユーザー ID ではない**。RLS では `rls.current_app_user_id()` / `rls.is_own(owner_id)` を使う
-- `sub → app user_id` の解決は `packages/application/src/auth/resolve-authenticated-app-user.ts` に集約し、全 API で再利用する
+- `sub → app user_id` の解決は `resolveAppUserId`（application 層）に集約する。JWT 検証だけで足りる API は `verifyAccessToken` のみ使う
+
+### フロント API クライアント
+
+- 業務コードは `api.get("/users/me")` のように呼ぶ（`/api` プレフィックスは axios が付与）
+- Bearer 付与・エラー判定は axios interceptor が担当
+- Supabase は `token-provider`（トークン取得）にだけ閉じ込める。業務コンポーネントから直接呼ばない
+
+### バックエンド エラーレスポンス
+
+- すべての業務 API で `{ error: { code, message } }` の共通形式を使う
+- Route Handler は `handleRoute()` で try/catch し、`AppError` → `jsonError()` で返す
+- エラー JSON の直書き禁止
 
 ---
 
 ## 6. Supabase利用方針
 
-- フロントから直接Supabaseを呼ばない
-- すべてRoute Handler経由（BFF強制）
+- フロントの**業務コード**から Supabase を直接呼ばない（DB 操作・業務 API 呼び出し）
+- 例外: `token-provider` でセッションから access_token を取得する用途のみ可
+- 業務データの read/write はすべて Route Handler 経由（BFF強制）
 
 ---
 
@@ -317,6 +330,8 @@ packages/shared/validation
 - 内部用途のみ
 - ルートはシンプルに保つ
 - 認証必須 API は `Authorization: Bearer <access_token>` を要求する
+- フロントは axios クライアント（`frontend/src/lib/api/client.ts`）経由で呼ぶ
+- エラーレスポンスは `{ error: { code, message } }` の共通形式
 
 ```
 GET    /api/users/me          # ログイン中ユーザー情報
@@ -325,6 +340,12 @@ POST   /api/projects
 GET    /api/projects/:id
 PUT    /api/projects/:id
 DELETE /api/projects/:id
+```
+
+フロントからの呼び出し例:
+
+```typescript
+const { data: user } = await api.get("/users/me");
 ```
 
 ---
