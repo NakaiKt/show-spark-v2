@@ -122,10 +122,12 @@ packages/                          ← ★ API の中身（Express の service +
   shared/                          ← validation + 共通型 + エラー
   application/                     ← service
   db/                              ← dao
-  domain/                          ← 純粋な業務ルール（最初は薄くてよい）
+  domain/                          ← 純粋な業務ルール（/me では未使用。frontend 依存なし）
 ```
 
 `packages/` 単体では HTTP リクエストを受けない。必ず `frontend/src/app/api/` 経由。
+
+`/me` 実装時点で frontend が依存するのは `shared`, `application`, `db` の 3 つのみ。
 
 ---
 
@@ -398,17 +400,25 @@ packages/shared/validation
 
 ---
 
-## 10. importルール
+## 10. import ルール
 
-- 相対import禁止
-- alias使用
+- 相対 import 禁止（packages 間）
+- alias 使用
 
 ```
-@repo/application/*
-@repo/domain/*
-@repo/db/*
-@repo/shared/*
+@repo/application/*  →  packages/application/src/*
+@repo/db/*           →  packages/db/src/*
+@repo/shared/*       →  packages/shared/src/*
+@repo/domain/*       →  packages/domain/src/*（使う場合のみ）
 ```
+
+**import 例（ファイル `packages/shared/src/errors.ts`）:**
+
+```typescript
+import { AppError } from "@repo/shared/errors";
+```
+
+**package.json の exports はファイル追加のたびに更新しない。** 解決は `frontend/tsconfig.json` の paths と `transpilePackages` に任せる。
 
 ---
 

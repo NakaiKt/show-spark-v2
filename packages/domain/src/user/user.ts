@@ -1,1 +1,0 @@
-export type { User } from "@repo/shared/types/user";

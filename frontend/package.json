@@ -14,7 +14,6 @@
     "@supabase/supabase-js": "^2.105.1",
     "@repo/application": "*",
     "@repo/db": "*",
-    "@repo/domain": "*",
     "@repo/shared": "*",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",

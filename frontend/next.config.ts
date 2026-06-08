@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@repo/application",
     "@repo/db",
-    "@repo/domain",
     "@repo/shared",
   ],
 };
