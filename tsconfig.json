@@ -1,0 +1,25 @@
+{
+  // packages/ 配下（@repo/shared・db・application）用の TypeScript 設定。
+  // frontend/ は frontend/tsconfig.json を使うため、ここでは packages のみを対象にする。
+  // エディタが packages の各ファイルを開いたとき、この設定でパスエイリアスを解決する。
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@repo/shared/*": ["packages/shared/src/*"],
+      "@repo/db/*": ["packages/db/src/*"],
+      "@repo/application/*": ["packages/application/src/*"]
+    }
+  },
+  "include": ["packages/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules"]
+}

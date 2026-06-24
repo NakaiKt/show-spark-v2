@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "npx supabase start & cd frontend && npm run dev",
     "db:reset": "supabase db reset && npm run db:dump && npm run gen:types",
-    "db:push": "supabase db push && supabase db dump --linked -f supabase/schema.sql && node scripts/split-schema.mjs",
+    "db:push": "supabase db push && supabase db dump --linked -f supabase/schema.sql && node scripts/split-schema.mjs && supabase gen types typescript --linked > packages/db/src/database.types.ts",
     "db:dump": "supabase db dump --local -f supabase/schema.sql && node scripts/split-schema.mjs",
-    "gen:types": "supabase gen types typescript --local > frontend/src/lib/supabase/database.types.ts"
+    "gen:types": "supabase gen types typescript --local > packages/db/src/database.types.ts",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.14",
-    "supabase": "^2.98.0"
+    "@biomejs/biome": "^2.5.1",
+    "supabase": "^2.98.0",
+    "vitest": "^2.1.9"
   }
 }

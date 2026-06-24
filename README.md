@@ -1,61 +1,102 @@
-# 計画書
+# show-spark-v2
 
-実装前の設計・手順書は `docs/計画書/` に置く。
+Next.js (App Router) + Supabase の Web アプリ。UI と業務 API をモノレポで分離している。
 
-レイヤー構成（Express の router / service / dao との対応）は [AGENTS.md §2.1](AGENTS.md#21-express-経験者向けレイヤー対応表) を参照。
+## ドキュメント
 
-| ファイル | 内容 |
-|---|---|
-| [docs/計画書/db-user-identity-migration.md](docs/計画書/db-user-identity-migration.md) | ユーザー ID 分離（DB マイグレーション） |
-| [docs/計画書/get-users-me-api.md](docs/計画書/get-users-me-api.md) | GET /api/users/me 実装計画（Phase 別手順・Express 対応付き） |
+
+| ドキュメント                                   | 内容                               |
+| ---------------------------------------- | -------------------------------- |
+| [AGENTS.md](AGENTS.md)                   | 全体アーキテクチャ・レイヤー対応表（Express 経験者向け） |
+| [packages/AGENTS.md](packages/AGENTS.md) | API を 追加する手順                     |
+| [docs/計画書/](docs/計画書/)                   | 実装前の設計・手順書                       |
+
+
+## 構成
+
+
+| ディレクトリ                 | 役割                                         |
+| ---------------------- | ------------------------------------------ |
+| `frontend/`            | Next.js（UI + API 入口 `app/api/**/route.ts`） |
+| `packages/shared`      | 共通型・エラー・バリデーション                            |
+| `packages/db`          | DB アクセス（repository）                        |
+| `packages/application` | usecase・認可                                 |
+| `supabase/`            | マイグレーション・DB スキーマ                           |
+
 
 ---
 
 # 開発環境起動
+
+## 事前準備（env ファイル）
+
+クローン直後は以下 2 つの env を用意する（どちらも gitignore 済み）。
+
+`frontend/.env`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<npx supabase start のログに出る anon/publishable key>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+`.env`（リポジトリルート / Google ログイン用。`supabase/config.toml` が `env()` で参照）:
+
+```bash
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=<Google Cloud で発行したクライアントシークレット>
+```
+
+## 起動
+
 1回目
-``` bash
-// supabase起動
+
+```bash
+# supabase起動（起動ログの API URL / publishable key を frontend/.env に記録）
 npx supabase start
 
-// 起動後に得られたanon keyを .env.localに記録
 cd frontend
 npm run dev
 ```
 
-2回目以降はrootで
-``` bash
+2回目以降はrootで（supabase 起動とフロント起動をまとめて実行）
+
+```bash
 npm run dev
 ```
 
-``` bash
-// supabase 停止
+```bash
+# supabase 停止
 npx supabase stop
 ```
 
 # データベース操作
-``` bash
-// データベースリセット & schema・database/ 生成 & types 生成
+
+型生成（`gen:types`）は `db:reset` / `db:push` に**組み込み済み**。テーブル変更後はどちらかを
+実行すれば `packages/db/src/database.types.ts` まで自動更新される（手動で打つ必要はない）。
+
+```bash
+# ローカルDBリセット → schema・database/ 生成 → types 生成（local から）
 npm run db:reset
 
-// リモートデータベースに反映 & schema・database/ 生成
+# リモートDBに反映 → schema・database/ 生成 → types 生成（linked から）
 npm run db:push
 
-// schema・database/ 生成のみ（types は生成しない）
+# schema・database/ 生成のみ（types は生成しない）
 npm run db:dump
 
-// typesファイル作成
+# types のみ手動生成（通常は不要。reset/push が自動実行する）
 npm run gen:types
-
 ```
 
 ## linkが切れている場合
+
 `Cannot find project ref. Have you run supabase link?` と言われた場合
 
-``` bash
-// まずはログインしているかどうか
+```bash
+# まずはログインしているか確認
 npx supabase login
 
-// プロジェクトの紐づけ
+# プロジェクトの紐づけ
 npx supabase link
 ```
 
@@ -83,14 +124,14 @@ npx supabase migration new <名前>
 ```bash
 npm run db:reset
 # → マイグレーション適用 → supabase/schema.sql と supabase/database/<table>.sql を更新
-# → frontend/src/lib/supabase/database.types.ts を更新
+# → packages/db/src/database.types.ts を更新（frontend からは @repo/db/database.types で参照）
 ```
 
 ### 4. リモートに反映
 
 ```bash
 npm run db:push
-# → リモートDBにマイグレーションを適用 → schema・database/ を更新
+# → リモートDBにマイグレーションを適用 → schema・database/ と types を更新
 ```
 
 ---
@@ -122,8 +163,50 @@ npm run db:push
 
 ## 現在のスキーマ定義を確認する
 
-| ファイル | 内容 |
-|---|---|
-| `supabase/schema.sql` | 現在のDB全体のスナップショット（自動生成） |
-| `supabase/database/<table>.sql` | テーブル別の定義（自動生成） |
-| `supabase/migrations/` | 変更の履歴（実際に適用されるSQL） |
+
+| ファイル                            | 内容                     |
+| ------------------------------- | ---------------------- |
+| `supabase/schema.sql`           | 現在のDB全体のスナップショット（自動生成） |
+| `supabase/database/<table>.sql` | テーブル別の定義（自動生成）         |
+| `supabase/migrations/`          | 変更の履歴（実際に適用されるSQL）     |
+
+
+---
+
+# デプロイ
+
+ホスティングは **Vercel（フロント）+ Supabase クラウド（DB / Auth）**。
+`supabase/config.toml` は **ローカル専用**で、本番には反映されない（本番の Auth 設定は
+Supabase ダッシュボードで行う）。
+
+## 1. DB を本番に反映
+
+```bash
+# 初回のみ: 本番プロジェクトと紐づけ
+npx supabase login
+npx supabase link
+
+# マイグレーションを本番 DB に適用（+ schema/types を再生成）
+npm run db:push
+```
+
+## 2. Vercel（フロント）
+
+- リポジトリを Vercel に連携。Root Directory は `frontend`。
+- 環境変数（Vercel の Project Settings → Environment Variables）に本番値を設定：
+  - `NEXT_PUBLIC_SUPABASE_URL` … 本番 Supabase の URL（`https://<ref>.supabase.co`）
+  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` … 本番の publishable (anon) key
+  - `NEXT_PUBLIC_APP_URL` … 本番ドメイン（例 `https://example.com`）
+
+## 3. Supabase ダッシュボード（Auth 設定。config.toml は効かない）
+
+- Authentication → URL Configuration:
+  - Site URL = 本番ドメイン
+  - Redirect URLs に `https://<本番ドメイン>/api/auth/callback` を追加
+- Authentication → Providers → Google を有効化し、Client ID / Secret を設定
+- Google Cloud 側の OAuth 承認済みリダイレクト URI に
+`https://<ref>.supabase.co/auth/v1/callback` を追加
+
+> ローカルの `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET`（ルート `.env`）は
+> ローカルの Supabase 用。本番では上記ダッシュボード設定が使われる。
+

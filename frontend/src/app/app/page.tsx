@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CurrentUserCard } from "@/components/auth/current-user-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -52,6 +53,9 @@ export default async function AppHomePage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* 業務 API（GET /api/users/me）経由で取得した名前を表示する */}
+      <CurrentUserCard />
     </main>
   );
 }
