@@ -1,56 +1,27 @@
 "use client";
 
+import useSWR from "swr";
 import type { User } from "@repo/shared/types/user";
-import axios from "axios";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api/client";
-
-interface UseCurrentUserResult {
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-}
+import { getApiErrorMessage } from "@/lib/api/fetcher";
 
 /**
  * ログイン中のユーザー情報を取得するフック。
  *
- * フロントの「業務コード」側の入口。Supabase は知らず、axios クライアント経由で
- * `GET /api/users/me` を叩くだけ（Bearer 付与は client.ts の interceptor が担当）。
+ * 取得・キャッシュ・ローディング・再検証は SWR に委ねる
+ * （fetcher と Bearer 付与はグローバル設定 / axios interceptor 側）。
  *
  * @returns user / loading / error
  */
-const useCurrentUser = (): UseCurrentUserResult => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const useCurrentUser = () => {
+	const { data, error, isLoading } = useSWR<User>("/users/me");
 
-  useEffect(() => {
-    // アンマウント後に setState しないためのフラグ
-    let active = true;
-
-    (async () => {
-      try {
-        const res = await api.get<{ data: User }>("/users/me");
-        if (active) setUser(res.data.data);
-      } catch (e) {
-        if (!active) return;
-        // API の共通エラー形式 `{ error: { code, message } }` からメッセージを取り出す
-        const message = axios.isAxiosError(e)
-          ? (e.response?.data?.error?.message ??
-            "ユーザー情報の取得に失敗しました")
-          : "ユーザー情報の取得に失敗しました";
-        setError(message);
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return { user, loading, error };
+	return {
+		user: data ?? null,
+		loading: isLoading,
+		error: error
+			? getApiErrorMessage(error, "ユーザー情報の取得に失敗しました")
+			: null,
+	};
 };
 
 export default useCurrentUser;
