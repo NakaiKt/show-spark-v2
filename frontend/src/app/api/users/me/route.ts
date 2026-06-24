@@ -1,22 +1,10 @@
-import { authenticate } from "@repo/application/auth/authenticate";
 import { getCurrentUser } from "@repo/application/users/get-current-user";
-import { NextResponse } from "next/server";
-import { handleRoute } from "@/lib/api/handle-route";
+import { withAuth } from "@/lib/api/with-auth";
 
 /**
- * Route Handler 層（router + controller）: GET /api/users/me
+ * GET /api/users/me — ログイン中ユーザーを返す（認証必須）。
  *
- * HTTP の入口。ここでは「HTTP 変換」しかしない:
- *   - 認証コンテキスト取得 → authenticate（application）
- *   - 業務処理            → getCurrentUser（application）
- *   - エラー → 共通 JSON  → handleRoute
- *
- * 業務ロジックや DB 操作はここには書かない（すべて application / db へ委譲）。
+ * withAuth が authenticate を強制し、結果を `{ data }` で包む。
+ * この route.ts は「どの usecase を繋ぐか」だけを宣言する。
  */
-export async function GET(request: Request) {
-  return handleRoute(async () => {
-    const ctx = await authenticate(request);
-    const user = await getCurrentUser(ctx);
-    return NextResponse.json({ data: user });
-  });
-}
+export const GET = withAuth((ctx) => getCurrentUser(ctx));

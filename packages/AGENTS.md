@@ -121,34 +121,38 @@ export async function listMyProjects(ctx: AuthContext): Promise<Project[]> {
 
 ### 4. Route Handler を書く（HTTP 変換のみ）— `frontend`
 
+認証必須エンドポイントは `withAuth` で包む。`authenticate` の呼び出しが強制され、
+認証の書き忘れ（＝認証漏れ事故）が構造的に起きない。成功時は自動で `{ data }` 形式になる。
+
 ```ts
 // frontend/src/app/api/projects/route.ts
-import { NextResponse } from "next/server";
-import { authenticate } from "@repo/application/auth/authenticate";
 import { listMyProjects } from "@repo/application/projects/list-my-projects";
-import { handleRoute } from "@/lib/api/handle-route";
+import { withAuth } from "@/lib/api/with-auth";
 
-export async function GET(request: Request) {
-  return handleRoute(async () => {
-    const ctx = await authenticate(request);          // 認証
-    const projects = await listMyProjects(ctx);        // usecase
-    return NextResponse.json({ data: projects });      // 成功は { data }
-  });
+// 認証済み AuthContext が渡る。どの usecase を繋ぐかを宣言するだけ。
+export const GET = withAuth((ctx) => listMyProjects(ctx));
+```
+
+- 認証配線・エラー変換・`{ data }` 包みは `withAuth` / `handleRoute` が担当。route.ts に手書きしない。
+- 認証が**不要**な公開エンドポイントだけ、例外的に `handleRoute` を直接使う。
+
+### 5. フロントから呼ぶ（SWR）
+
+```ts
+// frontend/src/hooks/projects/useMyProjects.ts
+"use client";
+import useSWR from "swr";
+import type { Project } from "@repo/shared/types/project";
+
+// グローバル fetcher が { data } を展開し、Bearer も自動付与される
+export default function useMyProjects() {
+  const { data, error, isLoading } = useSWR<Project[]>("/projects");
+  return { projects: data ?? [], loading: isLoading, error };
 }
 ```
 
-- エラー JSON は直書きしない。`handleRoute` が `AppError` → `{ error: { code, message } }` に変換。
-- 認証は必ず `authenticate(request)`（Bearer）。Cookie に依存しない。
-
-### 5. フロントから呼ぶ
-
-```ts
-// 業務コードは axios クライアント経由（/api 付与・Bearer 自動付与）
-import { api } from "@/lib/api/client";
-const res = await api.get<{ data: Project[] }>("/projects");
-```
-
 Supabase をフロントの業務コードから直接触らない（トークン取得は `token-provider` のみ）。
+loading / error / キャッシュ / 再検証は SWR 任せ（手書きの useState/useEffect は不要）。
 
 ### 6. テストを書く（コードの隣 `__tests__/`）
 
